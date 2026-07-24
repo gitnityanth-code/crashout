@@ -125,6 +125,45 @@ export async function addRant(text: string): Promise<Rant> {
   return rant;
 }
 
+/**
+ * Removes every stored rant whose text matches `isBad`, keeping order for the
+ * survivors and decrementing the real-rant counter. Used to retroactively scrub
+ * rants that violate rules added after they were posted (e.g. a blocked name).
+ * Returns how many were removed.
+ */
+export async function purgeMatching(isBad: (text: string) => boolean): Promise<number> {
+  if (usingRedis()) {
+    const [items] = (await redisPipeline([["LRANGE", LIST_KEY, 0, -1]])) as [string[]];
+    const survivors = items
+      .map((s) => {
+        try {
+          return JSON.parse(s) as Rant;
+        } catch {
+          return null;
+        }
+      })
+      .filter((r): r is Rant => r !== null && typeof r.text === "string" && !isBad(r.text));
+    const removed = items.length - survivors.length;
+    if (removed === 0) return 0;
+
+    // Rebuild the list preserving newest-first order (LPUSH oldest→newest).
+    const cmds: (string | number)[][] = [["DEL", LIST_KEY]];
+    for (let i = survivors.length - 1; i >= 0; i--) {
+      cmds.push(["LPUSH", LIST_KEY, JSON.stringify(survivors[i])]);
+    }
+    cmds.push(["DECRBY", TOTAL_KEY, removed]);
+    await redisPipeline(cmds);
+    return removed;
+  }
+
+  const m = memory();
+  const before = m.rants.length;
+  m.rants = m.rants.filter((r) => !isBad(r.text));
+  const removed = before - m.rants.length;
+  m.total = Math.max(0, m.total - removed);
+  return removed;
+}
+
 /** Case/spacing-insensitive duplicate check against the freshest rants. */
 export async function isRecentDuplicate(text: string): Promise<boolean> {
   const canon = text.toLowerCase().replace(/\s+/g, " ").trim();
