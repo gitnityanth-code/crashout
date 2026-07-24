@@ -5,16 +5,14 @@
  *  - In-memory fallback — dev and keyless deploys. Survives HMR via globalThis,
  *    but NOT across serverless cold starts; the README explains the Redis setup.
  */
-import { makeSeeds } from "./seeds";
-
 export interface Rant {
   id: string;
   text: string;
   ts: number;
 }
 
-// v2 namespace = clean slate. Sample rants are display-only; the counter counts
-// real user rants only, starting from zero.
+// v2 namespace = clean slate. The wall is user-rants-only: nothing is planted,
+// and the counter counts real user rants only, starting from zero.
 const LIST_KEY = "crashout:rants:v2";
 const TOTAL_KEY = "crashout:total:v2";
 export const MAX_STORED = 2000; // ring buffer: the wall keeps the freshest rage
@@ -54,8 +52,8 @@ type MemoryState = { rants: Rant[]; total: number };
 function memory(): MemoryState {
   const g = globalThis as typeof globalThis & { __crashoutStore?: MemoryState };
   if (!g.__crashoutStore) {
-    const seeds = makeSeeds();
-    g.__crashoutStore = { rants: [...seeds].reverse(), total: 0 };
+    // Empty wall until real users rant — no seeds.
+    g.__crashoutStore = { rants: [], total: 0 };
   }
   return g.__crashoutStore;
 }
@@ -68,13 +66,13 @@ export function usingRedis(): boolean {
 
 export async function listRants(): Promise<{ rants: Rant[]; total: number }> {
   if (usingRedis()) {
-    const [items, totalRaw, len] = (await redisPipeline([
+    const [items, totalRaw] = (await redisPipeline([
       ["LRANGE", LIST_KEY, 0, PAGE_SIZE - 1],
       ["GET", TOTAL_KEY],
-      ["LLEN", LIST_KEY],
-    ])) as [string[], string | null, number];
+    ])) as [string[], string | null];
 
-    let rants = items
+    // Nothing is ever planted: an empty list simply means nobody has ranted yet.
+    const rants = items
       .map((s) => {
         try {
           return JSON.parse(s) as Rant;
@@ -83,18 +81,6 @@ export async function listRants(): Promise<{ rants: Rant[]; total: number }> {
         }
       })
       .filter((r): r is Rant => r !== null && typeof r.text === "string");
-
-    // First visitor ever: plant the sample rants for display, but keep the real
-    // rant counter at zero — the wall looks alive, "0 crashouts" is honest.
-    if (len === 0) {
-      const seeds = makeSeeds();
-      await redisPipeline([
-        ...seeds.map((s) => ["LPUSH", LIST_KEY, JSON.stringify(s)] as (string | number)[]),
-        ["SET", TOTAL_KEY, 0],
-      ]);
-      rants = [...seeds].reverse();
-      return { rants, total: 0 };
-    }
 
     return { rants, total: Number(totalRaw ?? 0) };
   }
@@ -162,6 +148,46 @@ export async function purgeMatching(isBad: (text: string) => boolean): Promise<n
   const removed = before - m.rants.length;
   m.total = Math.max(0, m.total - removed);
   return removed;
+}
+
+/**
+ * Removes every stored rant left over from the old built-in sample set (ids
+ * prefixed "seed-"), so the wall shows only real user submissions. Deliberately
+ * does NOT touch TOTAL_KEY: seed rants were display-only and were never counted
+ * as real rants, so decrementing would corrupt the counter.
+ * Returns how many were removed.
+ */
+export async function purgeSeeds(): Promise<number> {
+  const isSeed = (r: Rant) => typeof r.id === "string" && r.id.startsWith("seed-");
+
+  if (usingRedis()) {
+    const [items] = (await redisPipeline([["LRANGE", LIST_KEY, 0, -1]])) as [string[]];
+    const survivors = items
+      .map((s) => {
+        try {
+          return JSON.parse(s) as Rant;
+        } catch {
+          return null;
+        }
+      })
+      .filter((r): r is Rant => r !== null && typeof r.text === "string" && !isSeed(r));
+    const removed = items.length - survivors.length;
+    if (removed === 0) return 0;
+
+    // Rebuild the list preserving newest-first order (LPUSH oldest→newest).
+    // No DECRBY here — the counter never included seeds.
+    const cmds: (string | number)[][] = [["DEL", LIST_KEY]];
+    for (let i = survivors.length - 1; i >= 0; i--) {
+      cmds.push(["LPUSH", LIST_KEY, JSON.stringify(survivors[i])]);
+    }
+    await redisPipeline(cmds);
+    return removed;
+  }
+
+  const m = memory();
+  const before = m.rants.length;
+  m.rants = m.rants.filter((r) => !isSeed(r));
+  return before - m.rants.length;
 }
 
 /** Case/spacing-insensitive duplicate check against the freshest rants. */

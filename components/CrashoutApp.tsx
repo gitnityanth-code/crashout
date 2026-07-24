@@ -15,6 +15,7 @@ export default function CrashoutApp() {
   const [busy, setBusy] = useState(false);
   const [verdict, setVerdict] = useState<Verdict | null>(null);
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [globalView, setGlobalView] = useState(false);
   const wallRef = useRef<RantWallHandle>(null);
 
   const refresh = useCallback(async () => {
@@ -61,9 +62,10 @@ export default function CrashoutApp() {
           | { ok: false; kind: string; message: string; support?: boolean };
 
         if (data.ok && data.rant) {
+          wallRef.current?.spawn(data.rant);
           setRants((prev) => [data.rant!, ...prev]);
           setTotal((t) => t + 1);
-          wallRef.current?.spawn(data.rant, origin.x, origin.y);
+          setGlobalView(false); // pop back to the wall to watch it land
           return true;
         }
         if (!data.ok) {
@@ -83,7 +85,13 @@ export default function CrashoutApp() {
   return (
     <main className="app">
       <BackgroundFX />
-      <RantWall ref={wallRef} rants={rants} />
+      <RantWall ref={wallRef} rants={rants} globalView={globalView} />
+      {rants.length === 0 && (
+        <div className="empty-wall">
+          <span className="empty-big">NOTHING ON THE WALL YET</span>
+          <span className="empty-sub">be the first to crash out</span>
+        </div>
+      )}
       <Logo />
       <RantForm
         busy={busy}
@@ -96,7 +104,18 @@ export default function CrashoutApp() {
         {total.toLocaleString()} crashouts thrown at the wall
       </div>
 
-      <button className="rules-btn" onClick={() => setRulesOpen((o) => !o)}>
+      {rants.length > 0 && !globalView && (
+        <div className="scroll-hint">scroll to roam the wall</div>
+      )}
+
+      <button
+        className={`view-btn ui-chrome${globalView ? " on" : ""}`}
+        onClick={() => setGlobalView((g) => !g)}
+      >
+        {globalView ? "close global view" : "global view"}
+      </button>
+
+      <button className="rules-btn ui-chrome" onClick={() => setRulesOpen((o) => !o)}>
         rules of the wall
       </button>
 

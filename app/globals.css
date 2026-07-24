@@ -413,6 +413,36 @@ textarea {
   inset: 0;
   z-index: 10;
   overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+}
+.wall.dragging { cursor: grabbing; }
+.wall.global { cursor: default; }
+
+/* the archive: every rant lives here, in world space */
+.world {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+/* anamorphic wide-angle veil over the global view */
+.anamorphic-veil {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 12;
+  background:
+    radial-gradient(ellipse 76% 84% at 50% 50%, transparent 46%, rgba(0, 0, 0, 0.7) 100%),
+    linear-gradient(to right, rgba(0, 0, 0, 0.45), transparent 13%, transparent 87%, rgba(0, 0, 0, 0.45));
+  animation: veil-in 0.5s ease;
+}
+
+@keyframes veil-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .bubble {
@@ -420,29 +450,32 @@ textarea {
   top: 0;
   left: 0;
   width: max-content;
-  max-width: min(290px, 70vw);
-  padding: 13px 17px;
-  line-height: 1.4;
-  font-size: 14.5px;
+  max-width: min(240px, 62vw);
+  padding: 10px 13px;
+  line-height: 1.38;
+  font-size: 12.5px;
   overflow-wrap: break-word;
   will-change: transform;
   contain: layout style;
   user-select: none;
-  opacity: 0;
-  transition: opacity 0.6s ease;
   pointer-events: auto;
   cursor: default;
+  animation: bubble-in 0.45s ease both;
 }
 
-.bubble.live { opacity: 1; }
+@keyframes bubble-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 .bubble.front { z-index: 25; }
 
 .bubble .rant-text { display: block; }
 
 /* size by rant length */
-.bubble.size-l { font-size: 17.5px; font-weight: 700; }
-.bubble.size-m { font-size: 14.5px; }
-.bubble.size-s { font-size: 12.5px; max-width: min(330px, 74vw); }
+.bubble.size-l { font-size: 14.5px; font-weight: 700; }
+.bubble.size-m { font-size: 12.5px; }
+.bubble.size-s { font-size: 11px; max-width: min(250px, 64vw); }
 
 /* ---- variant: glass (the reference bubble) ---- */
 .bubble.v-glass {
@@ -480,9 +513,9 @@ textarea {
   background: transparent;
   border: none;
   text-shadow: 0 0 14px rgba(255, 255, 255, 0.55), 0 0 3px rgba(255, 255, 255, 0.4);
-  font-size: 16.5px;
+  font-size: 14px;
 }
-.bubble.v-marker.size-l { font-size: 20px; }
+.bubble.v-marker.size-l { font-size: 16.5px; }
 
 /* ---- variant: outline sticker ---- */
 .bubble.v-outline {
@@ -497,15 +530,15 @@ textarea {
   font-family: var(--font-display), var(--font-fallback);
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  font-size: 12.5px;
+  font-size: 11px;
   background: transparent;
   border: 2.5px solid var(--ink);
   border-radius: 2px;
-  padding: 12px 16px;
+  padding: 9px 13px;
   box-shadow: inset 0 0 0 1.5px var(--void), inset 0 0 0 2.5px rgba(255, 255, 255, 0.4);
   opacity: 0.92;
 }
-.bubble.v-stamp.size-l { font-size: 14px; }
+.bubble.v-stamp.size-l { font-size: 12.5px; }
 
 /* ---- variant: taped note ---- */
 .bubble.v-tape {
@@ -543,6 +576,81 @@ textarea {
   opacity: 0.55;
   pointer-events: none;
   text-transform: uppercase;
+}
+
+/* global / standard view switch */
+.view-btn {
+  position: absolute;
+  right: 18px;
+  bottom: 54px;
+  z-index: 35;
+  background: transparent;
+  border: 1px solid var(--edge-soft);
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  cursor: pointer;
+  opacity: 0.65;
+  transition: opacity 0.2s, border-color 0.2s, transform 0.15s;
+}
+.view-btn:hover { opacity: 1; border-color: var(--edge); transform: rotate(-2deg); }
+.view-btn.on {
+  opacity: 1;
+  background: var(--ink);
+  color: var(--void);
+  border-color: var(--ink);
+}
+
+/* nudge for first-timers: the wall scrolls */
+.scroll-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 34;
+  font-size: 10.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  opacity: 0.35;
+  pointer-events: none;
+  animation: hint-breathe 3.4s ease-in-out infinite;
+}
+
+@keyframes hint-breathe {
+  0%, 100% { opacity: 0.18; }
+  50% { opacity: 0.45; }
+}
+
+/* nobody has ranted yet */
+.empty-wall {
+  position: absolute;
+  inset: 0;
+  z-index: 11;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  pointer-events: none;
+  text-align: center;
+  padding: 0 24px;
+}
+
+.empty-wall .empty-big {
+  font-family: var(--font-display), var(--font-fallback);
+  font-size: clamp(20px, 5vw, 34px);
+  letter-spacing: 0.06em;
+  color: transparent;
+  -webkit-text-stroke: 1.4px rgba(255, 255, 255, 0.4);
+  transform: rotate(-1.5deg);
+}
+
+.empty-wall .empty-sub {
+  font-family: var(--font-marker), cursive;
+  font-size: 14px;
+  opacity: 0.5;
 }
 
 .rules-btn {
@@ -611,8 +719,10 @@ textarea {
    ============================================================ */
 
 @media (max-width: 560px) {
-  .bubble { max-width: 66vw; font-size: 13px; padding: 11px 14px; }
-  .bubble.size-l { font-size: 15px; }
+  .bubble { max-width: 54vw; font-size: 11.5px; padding: 8px 11px; }
+  .bubble.size-l { font-size: 13px; }
+  .bubble.v-marker { font-size: 13px; }
+  .bubble.v-pill { padding: 8px 15px; }
   .rant-form { top: calc(max(10px, 2vh) + 86vw / 4.6 + 26px); }
   .throw-btn { padding: 11px 16px; font-size: 12px; }
   .wall-count { font-size: 9.5px; letter-spacing: 0.12em; }
