@@ -88,12 +88,13 @@ const RantWall = forwardRef<RantWallHandle, { rants: Rant[] }>(function RantWall
     },
   }));
 
-  // Sparse pool: readable chaos, not a mosh pit (~25% max screen coverage).
+  // Sparse pool: only a handful of bubbles at a time — the rest of the archive
+  // waits its turn offscreen. Phone ~4, tablet ~6, desktop ~9. No flooding.
   useEffect(() => {
-    const computePool = () =>
-      setPoolSize(
-        Math.max(6, Math.min(16, Math.round((window.innerWidth * window.innerHeight) / 85000)))
-      );
+    const computePool = () => {
+      const w = window.innerWidth;
+      setPoolSize(w < 640 ? 4 : w < 1100 ? 6 : 9);
+    };
     computePool();
     let resizeTimer = 0;
     const onResize = () => {

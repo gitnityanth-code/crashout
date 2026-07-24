@@ -20,7 +20,8 @@ export type RejectKind =
   | "self-harm"
   | "doxxing"
   | "link"
-  | "site-hate";
+  | "site-hate"
+  | "name";
 
 export type ModerationResult =
   | { ok: true; text: string }
@@ -38,6 +39,7 @@ const REJECTION_COPY: Record<RejectKind, string> = {
   doxxing: "No names with numbers, no addresses, no contacts. Rage stays anonymous.",
   link: "No links. Just feelings.",
   "site-hate": "Cute. The wall doesn't take shots at itself. Aim that rage at something real.",
+  name: "The wall stays nameless. That one doesn't get through.",
 };
 
 /* ------------------------------------------------------------------ */
@@ -310,6 +312,32 @@ const SITE_HATE: RegExp[] = [
 const hasSiteHate = (normalized: string) => SITE_HATE.some((re) => re.test(normalized));
 
 /* ------------------------------------------------------------------ */
+/* Layer 7 — the founder's name never appears on the wall              */
+/* ------------------------------------------------------------------ */
+
+// Latin letter-sequences matched inside the condensed text (so casing, leet,
+// spacing, and punctuation evasion are already neutralized), plus common
+// spelling variants.
+const BLOCKED_NAME_SEQUENCES = [
+  "nityanth", "nithyanth", "nityant", "nithyant", "nityanth".split("").reverse().join(""),
+];
+
+// Native-script spellings (Telugu, Devanagari), matched against the raw text.
+const BLOCKED_NAME_SCRIPTS: RegExp[] = [
+  /నిత్యాంత్|నిత్యంత్|నిత్యాంత|నిత్యంత/u,
+  /नित्यंत|नित्यन्त|नित्यान्त/u,
+];
+
+function hasBlockedName(raw: string, normalized: string): boolean {
+  const condensed = condense(normalized);
+  const variants = new Set([condensed, collapseRuns(condensed, 2), collapseRuns(condensed, 1)]);
+  for (const v of variants) {
+    if (BLOCKED_NAME_SEQUENCES.some((seq) => v.includes(seq))) return true;
+  }
+  return BLOCKED_NAME_SCRIPTS.some((re) => re.test(raw.normalize("NFC")));
+}
+
+/* ------------------------------------------------------------------ */
 /* The verdict                                                         */
 /* ------------------------------------------------------------------ */
 
@@ -325,6 +353,7 @@ export function moderate(raw: string): ModerationResult {
 
   const normalized = normalize(display);
 
+  if (hasBlockedName(display, normalized)) return reject("name");
   if (hasPII(display)) return reject("doxxing");
   if (hasLink(display)) return reject("link");
   if (hasSlur(normalized)) return reject("slur");

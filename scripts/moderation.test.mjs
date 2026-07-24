@@ -101,6 +101,16 @@ const EXPECT = {
   ],
   "too-long": ["a".repeat(300)],
   empty: ["", " ", "x"],
+  name: [
+    "nityanth ruined my day",
+    "NITYANTH!!!",
+    "n i t y a n t h",
+    "n1ty4nth thinks he's funny",
+    "niiityaaanth",
+    "that nithyanth guy",
+    "నిత్యంత్ మళ్ళీ",
+    "नित्यंत क्या कर रहा है",
+  ],
 };
 
 let pass = 0;
