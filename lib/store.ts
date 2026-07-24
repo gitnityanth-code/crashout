@@ -13,8 +13,10 @@ export interface Rant {
   ts: number;
 }
 
-const LIST_KEY = "crashout:rants";
-const TOTAL_KEY = "crashout:total";
+// v2 namespace = clean slate. Sample rants are display-only; the counter counts
+// real user rants only, starting from zero.
+const LIST_KEY = "crashout:rants:v2";
+const TOTAL_KEY = "crashout:total:v2";
 export const MAX_STORED = 2000; // ring buffer: the wall keeps the freshest rage
 export const PAGE_SIZE = 300; // most recent rants served to clients
 
@@ -53,7 +55,7 @@ function memory(): MemoryState {
   const g = globalThis as typeof globalThis & { __crashoutStore?: MemoryState };
   if (!g.__crashoutStore) {
     const seeds = makeSeeds();
-    g.__crashoutStore = { rants: [...seeds].reverse(), total: seeds.length };
+    g.__crashoutStore = { rants: [...seeds].reverse(), total: 0 };
   }
   return g.__crashoutStore;
 }
@@ -82,18 +84,19 @@ export async function listRants(): Promise<{ rants: Rant[]; total: number }> {
       })
       .filter((r): r is Rant => r !== null && typeof r.text === "string");
 
-    // First visitor ever: plant the seeds so the wall is alive.
+    // First visitor ever: plant the sample rants for display, but keep the real
+    // rant counter at zero — the wall looks alive, "0 crashouts" is honest.
     if (len === 0) {
       const seeds = makeSeeds();
       await redisPipeline([
         ...seeds.map((s) => ["LPUSH", LIST_KEY, JSON.stringify(s)] as (string | number)[]),
-        ["SET", TOTAL_KEY, seeds.length],
+        ["SET", TOTAL_KEY, 0],
       ]);
       rants = [...seeds].reverse();
-      return { rants, total: seeds.length };
+      return { rants, total: 0 };
     }
 
-    return { rants, total: Number(totalRaw ?? len) };
+    return { rants, total: Number(totalRaw ?? 0) };
   }
 
   const m = memory();
