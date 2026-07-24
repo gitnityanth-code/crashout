@@ -1,0 +1,24 @@
+{
+  "name": "crashout",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CRASHOUT.COM — rant to your heart's content.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "test:moderation": "node scripts/moderation.test.mjs"
+  },
+  "dependencies": {
+    "next": "^15.4.5",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "typescript": "^5.8.0"
+  }
+}

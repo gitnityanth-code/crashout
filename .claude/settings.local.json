@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(node --version)",
+      "PowerShell(npm --version)",
+      "PowerShell(node \"C:\\\\Users\\\\gorre\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-gorre-OneDrive-Desktop-Crashout-site\\\\8ac47b05-61e5-4768-8be3-5dd67cbeeb69\\\\scratchpad\\\\fixregex.mjs\")",
+      "PowerShell(npm run build)",
+      "PowerShell(git init -b main)",
+      "PowerShell(git config user.name)",
+      "PowerShell(git config user.email)",
+      "PowerShell(git config user.email \"gorrepatinityanth@gmail.com\")",
+      "PowerShell(git config user.name \"nityanth\")",
+      "PowerShell(git add -A)",
+      "PowerShell(git commit -m \"CRASHOUT v1 - anonymous rant wall\")"
+    ]
+  }
+}

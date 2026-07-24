@@ -1,0 +1,619 @@
+/* ============================================================
+   CRASHOUT — monochrome rage. White. Black. Nothing else.
+   ============================================================ */
+
+:root {
+  --ink: #ffffff;
+  --void: #000000;
+  --glass: rgba(255, 255, 255, 0.055);
+  --edge: rgba(255, 255, 255, 0.28);
+  --edge-soft: rgba(255, 255, 255, 0.12);
+  --font-fallback: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  overscroll-behavior: none;
+}
+
+body {
+  background: var(--void);
+  color: var(--ink);
+  font-family: var(--font-body), var(--font-fallback);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+.app {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+}
+
+/* ============================================================
+   BACKGROUND FX — grain, glow, drips, ghost graffiti
+   ============================================================ */
+
+.fx {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* film grain via SVG turbulence */
+.fx-grain {
+  position: absolute;
+  inset: -50%;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+  opacity: 0.07;
+  animation: grain-jitter 0.9s steps(4) infinite;
+}
+
+@keyframes grain-jitter {
+  0% { transform: translate(0, 0); }
+  25% { transform: translate(-1.2%, 0.8%); }
+  50% { transform: translate(0.9%, -1.1%); }
+  75% { transform: translate(-0.6%, -0.7%); }
+  100% { transform: translate(0, 0); }
+}
+
+/* corner spray glows */
+.fx-glow {
+  position: absolute;
+  width: 60vmax;
+  height: 60vmax;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.05;
+  background: radial-gradient(circle, #ffffff 0%, transparent 62%);
+}
+.fx-glow.tl { top: -32vmax; left: -28vmax; }
+.fx-glow.br { bottom: -34vmax; right: -30vmax; opacity: 0.04; }
+
+/* matrix drips — thin light falling down the void */
+.fx-drip {
+  position: absolute;
+  top: 0;
+  width: 1px;
+  height: 26vh;
+  background: linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.5), transparent);
+  animation: drip-fall linear infinite;
+  will-change: transform;
+}
+
+@keyframes drip-fall {
+  from { transform: translateY(-30vh); }
+  to { transform: translateY(130vh); }
+}
+
+/* enormous ghost graffiti words floating behind everything */
+.fx-word {
+  position: absolute;
+  font-family: var(--font-display), var(--font-fallback);
+  color: transparent;
+  -webkit-text-stroke: 1.5px rgba(255, 255, 255, 0.065);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  user-select: none;
+  animation: word-drift 26s ease-in-out infinite alternate;
+}
+
+@keyframes word-drift {
+  from { transform: translate(0, 0) rotate(var(--tilt, -6deg)); }
+  to { transform: translate(2.5vw, -3vh) rotate(var(--tilt, -6deg)); }
+}
+
+/* spray splats — dotted overspray clusters */
+.fx-splat {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+  opacity: 0.1;
+  box-shadow:
+    14px 6px 0 -1px rgba(255, 255, 255, 0.35),
+    -11px 12px 0 -2px rgba(255, 255, 255, 0.3),
+    24px -9px 0 -2px rgba(255, 255, 255, 0.28),
+    -20px -14px 0 -3px rgba(255, 255, 255, 0.25),
+    4px 22px 0 -3px rgba(255, 255, 255, 0.3),
+    -28px 2px 0 -3px rgba(255, 255, 255, 0.22),
+    33px 10px 0 -3px rgba(255, 255, 255, 0.18),
+    9px -19px 0 -3px rgba(255, 255, 255, 0.24);
+}
+
+/* ============================================================
+   HEADER — the logo, gradient breathing through the letterforms
+   ============================================================ */
+
+.masthead {
+  position: absolute;
+  top: max(10px, 2vh);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+  user-select: none;
+}
+
+.logo-wrap {
+  position: relative;
+  width: min(520px, 86vw);
+  aspect-ratio: 4.6 / 1;
+  animation: logo-sway 7s ease-in-out infinite;
+}
+
+@keyframes logo-sway {
+  0%, 100% { transform: rotate(-1.1deg) scale(1); }
+  50% { transform: rotate(1.1deg) scale(1.015); }
+}
+
+/* halo behind the wordmark */
+.logo-wrap::before {
+  content: "";
+  position: absolute;
+  inset: -46% -12%;
+  background: radial-gradient(ellipse 60% 55% at 50% 50%, rgba(255, 255, 255, 0.13), transparent 68%);
+  filter: blur(10px);
+  animation: halo-pulse 4.4s ease-in-out infinite;
+}
+
+@keyframes halo-pulse {
+  0%, 100% { opacity: 0.65; }
+  50% { opacity: 1; }
+}
+
+/* fallback: the plain PNG, band-cropped */
+.logo-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 50%;
+}
+
+/* the real trick: white↔black gradient sweeping THROUGH the letters,
+   using the PNG itself as a luminance mask */
+.logo-masked {
+  display: none;
+}
+
+@supports (mask-mode: luminance) or (-webkit-mask-mode: luminance) {
+  .logo-img { display: none; }
+  .logo-masked {
+    display: block;
+    position: absolute;
+    inset: 0;
+    -webkit-mask-image: url("/logo.png");
+    -webkit-mask-mode: luminance;
+    -webkit-mask-repeat: no-repeat;
+    -webkit-mask-size: cover;
+    -webkit-mask-position: center 50%;
+    mask-image: url("/logo.png");
+    mask-mode: luminance;
+    mask-repeat: no-repeat;
+    mask-size: cover;
+    mask-position: center 50%;
+    background: linear-gradient(
+      105deg,
+      #ffffff 0%, #ffffff 26%,
+      #1a1a1a 40%, #6a6a6a 50%, #1a1a1a 60%,
+      #ffffff 74%, #ffffff 100%
+    );
+    background-size: 320% 100%;
+    animation: ink-sweep 5.2s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  }
+}
+
+@keyframes ink-sweep {
+  0% { background-position: 118% 0; }
+  55% { background-position: -18% 0; }
+  100% { background-position: -18% 0; }
+}
+
+/* tiny UK sticker slapped on the logo corner */
+.uk-tag {
+  position: absolute;
+  right: -6px;
+  top: 4px;
+  font-family: var(--font-display), var(--font-fallback);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  background: var(--ink);
+  color: var(--void);
+  padding: 3px 7px;
+  transform: rotate(8deg);
+  box-shadow: 0 0 14px rgba(255, 255, 255, 0.35);
+}
+
+.tagline {
+  margin-top: 2px;
+  font-family: var(--font-marker), cursive;
+  font-size: clamp(13px, 2.4vw, 17px);
+  letter-spacing: 0.06em;
+  opacity: 0.85;
+  transform: rotate(-1.4deg);
+  text-shadow: 0 0 12px rgba(255, 255, 255, 0.35);
+}
+
+/* ============================================================
+   RANT FORM — the glassy pill from the reference
+   ============================================================ */
+
+.rant-form {
+  position: absolute;
+  top: calc(max(10px, 2vh) + min(520px, 86vw) / 4.6 + 34px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  width: min(620px, 92vw);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.pill {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 7px 7px 22px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.03) 55%);
+  border: 1px solid var(--edge);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.6),
+    0 0 26px rgba(255, 255, 255, 0.10),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: box-shadow 0.25s ease, border-color 0.25s ease;
+}
+
+.pill:focus-within {
+  border-color: rgba(255, 255, 255, 0.55);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.6),
+    0 0 42px rgba(255, 255, 255, 0.20),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.pill.shake {
+  animation: pill-shake 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+@keyframes pill-shake {
+  10%, 90% { transform: translateX(-2px); }
+  20%, 80% { transform: translateX(4px); }
+  30%, 50%, 70% { transform: translateX(-7px); }
+  40%, 60% { transform: translateX(7px); }
+}
+
+.rant-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  padding: 10px 0;
+  caret-color: #fff;
+}
+
+.rant-input::placeholder {
+  color: rgba(255, 255, 255, 0.45);
+  font-style: italic;
+}
+
+.hp-field {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.throw-btn {
+  flex-shrink: 0;
+  font-family: var(--font-display), var(--font-fallback);
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  background: var(--ink);
+  color: var(--void);
+  border: none;
+  border-radius: 999px;
+  padding: 12px 22px;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.2s ease;
+  box-shadow: 0 0 18px rgba(255, 255, 255, 0.25);
+}
+
+.throw-btn:hover { transform: scale(1.05) rotate(-1.5deg); box-shadow: 0 0 30px rgba(255, 255, 255, 0.45); }
+.throw-btn:active { transform: scale(0.94); }
+.throw-btn:disabled { opacity: 0.5; cursor: wait; transform: none; }
+
+.char-count {
+  position: absolute;
+  right: 16px;
+  bottom: -20px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  opacity: 0.4;
+}
+.char-count.hot { opacity: 0.9; font-weight: 700; }
+
+/* moderation verdict toast */
+.verdict {
+  max-width: 100%;
+  margin-top: 14px;
+  padding: 12px 18px;
+  border: 1.5px solid var(--ink);
+  background: var(--void);
+  font-size: 13.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1.5;
+  transform: rotate(-0.8deg);
+  box-shadow: 4px 4px 0 rgba(255, 255, 255, 0.18), 0 0 24px rgba(255, 255, 255, 0.08);
+  animation: verdict-stamp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.verdict.support {
+  border-width: 1px;
+  border-color: var(--edge);
+  background: rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(8px);
+  transform: none;
+  font-weight: 400;
+}
+
+.verdict .verdict-kicker {
+  display: block;
+  font-family: var(--font-display), var(--font-fallback);
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  margin-bottom: 4px;
+  opacity: 0.75;
+}
+
+@keyframes verdict-stamp {
+  from { transform: scale(1.35) rotate(-4deg); opacity: 0; }
+  to { transform: scale(1) rotate(-0.8deg); opacity: 1; }
+}
+
+/* ============================================================
+   THE WALL — floating rant bubbles
+   ============================================================ */
+
+.wall {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  overflow: hidden;
+}
+
+.bubble {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: max-content;
+  max-width: min(290px, 70vw);
+  padding: 13px 17px;
+  line-height: 1.4;
+  font-size: 14.5px;
+  overflow-wrap: break-word;
+  will-change: transform;
+  contain: layout style;
+  user-select: none;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+  pointer-events: auto;
+  cursor: default;
+}
+
+.bubble.live { opacity: 1; }
+.bubble.front { z-index: 25; }
+
+.bubble .rant-text { display: block; }
+
+/* size by rant length */
+.bubble.size-l { font-size: 17.5px; font-weight: 700; }
+.bubble.size-m { font-size: 14.5px; }
+.bubble.size-s { font-size: 12.5px; max-width: min(330px, 74vw); }
+
+/* ---- variant: glass (the reference bubble) ---- */
+.bubble.v-glass {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.025) 60%);
+  border: 1px solid var(--edge);
+  border-radius: 18px;
+  box-shadow: 0 0 22px rgba(255, 255, 255, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+/* ---- variant: glass pill ---- */
+.bubble.v-pill {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.02));
+  border: 1px solid var(--edge-soft);
+  border-radius: 999px;
+  padding: 13px 22px;
+  box-shadow: 0 0 18px rgba(255, 255, 255, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+/* ---- variant: inverse sticker (white on black world) ---- */
+.bubble.v-inverse {
+  background: var(--ink);
+  color: var(--void);
+  border-radius: 6px;
+  font-weight: 700;
+  box-shadow: 0 0 26px rgba(255, 255, 255, 0.3), 5px 5px 0 rgba(255, 255, 255, 0.14);
+}
+
+/* ---- variant: marker scrawl ---- */
+.bubble.v-marker {
+  font-family: var(--font-marker), cursive;
+  background: transparent;
+  border: none;
+  text-shadow: 0 0 14px rgba(255, 255, 255, 0.55), 0 0 3px rgba(255, 255, 255, 0.4);
+  font-size: 16.5px;
+}
+.bubble.v-marker.size-l { font-size: 20px; }
+
+/* ---- variant: outline sticker ---- */
+.bubble.v-outline {
+  background: rgba(0, 0, 0, 0.55);
+  border: 2px solid var(--ink);
+  border-radius: 14px 3px 16px 4px;
+  box-shadow: 3px 3px 0 rgba(255, 255, 255, 0.22);
+}
+
+/* ---- variant: stamp / stencil ---- */
+.bubble.v-stamp {
+  font-family: var(--font-display), var(--font-fallback);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 12.5px;
+  background: transparent;
+  border: 2.5px solid var(--ink);
+  border-radius: 2px;
+  padding: 12px 16px;
+  box-shadow: inset 0 0 0 1.5px var(--void), inset 0 0 0 2.5px rgba(255, 255, 255, 0.4);
+  opacity: 0.92;
+}
+.bubble.v-stamp.size-l { font-size: 14px; }
+
+/* ---- variant: taped note ---- */
+.bubble.v-tape {
+  background: #f2f2f2;
+  color: var(--void);
+  font-family: var(--font-marker), cursive;
+  border-radius: 2px;
+  box-shadow: 0 6px 18px rgba(255, 255, 255, 0.12);
+}
+.bubble.v-tape::before,
+.bubble.v-tape::after {
+  content: "";
+  position: absolute;
+  width: 42px;
+  height: 14px;
+  background: rgba(255, 255, 255, 0.55);
+  border-left: 1px dashed rgba(0, 0, 0, 0.18);
+  border-right: 1px dashed rgba(0, 0, 0, 0.18);
+}
+.bubble.v-tape::before { top: -7px; left: -12px; transform: rotate(-38deg); }
+.bubble.v-tape::after { bottom: -7px; right: -12px; transform: rotate(-34deg); }
+
+/* ============================================================
+   FOOTER BITS
+   ============================================================ */
+
+.wall-count {
+  position: absolute;
+  left: 18px;
+  bottom: 16px;
+  z-index: 35;
+  font-family: var(--font-display), var(--font-fallback);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  opacity: 0.55;
+  pointer-events: none;
+  text-transform: uppercase;
+}
+
+.rules-btn {
+  position: absolute;
+  right: 18px;
+  bottom: 14px;
+  z-index: 35;
+  background: transparent;
+  border: 1px solid var(--edge-soft);
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  cursor: pointer;
+  opacity: 0.65;
+  transition: opacity 0.2s, border-color 0.2s, transform 0.15s;
+}
+.rules-btn:hover { opacity: 1; border-color: var(--edge); transform: rotate(-2deg); }
+
+.rules-panel {
+  position: absolute;
+  right: 18px;
+  bottom: 54px;
+  z-index: 50;
+  width: min(320px, 86vw);
+  background: var(--void);
+  border: 1.5px solid var(--ink);
+  padding: 18px 20px;
+  box-shadow: 6px 6px 0 rgba(255, 255, 255, 0.15), 0 0 40px rgba(255, 255, 255, 0.1);
+  transform: rotate(-0.6deg);
+  animation: verdict-stamp 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.rules-panel h2 {
+  font-family: var(--font-display), var(--font-fallback);
+  font-size: 14px;
+  letter-spacing: 0.2em;
+  margin-bottom: 10px;
+}
+
+.rules-panel ul { list-style: none; }
+
+.rules-panel li {
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 4px 0;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.14);
+}
+.rules-panel li:last-child { border-bottom: none; }
+.rules-panel .yes::before { content: "✔ "; }
+.rules-panel .no::before { content: "✖ "; }
+
+/* ============================================================
+   REDUCED MOTION
+   ============================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .fx-grain, .fx-drip, .fx-word, .logo-wrap, .logo-masked, .logo-wrap::before {
+    animation: none !important;
+  }
+}
+
+/* ============================================================
+   SMALL SCREENS
+   ============================================================ */
+
+@media (max-width: 560px) {
+  .bubble { max-width: 66vw; font-size: 13px; padding: 11px 14px; }
+  .bubble.size-l { font-size: 15px; }
+  .rant-form { top: calc(max(10px, 2vh) + 86vw / 4.6 + 26px); }
+  .throw-btn { padding: 11px 16px; font-size: 12px; }
+  .wall-count { font-size: 9.5px; letter-spacing: 0.12em; }
+}
