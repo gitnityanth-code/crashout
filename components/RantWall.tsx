@@ -96,6 +96,10 @@ const RantWall = forwardRef<RantWallHandle, { rants: Rant[] }>(function RantWall
       setPoolSize(w < 640 ? 4 : w < 1100 ? 6 : 9);
     };
     computePool();
+    // Guard against a stale/transient width at mount (some mobile browsers report
+    // the wrong innerWidth on first paint): recompute once the layout settles.
+    const raf = requestAnimationFrame(computePool);
+    const settle = window.setTimeout(computePool, 300);
     let resizeTimer = 0;
     const onResize = () => {
       window.clearTimeout(resizeTimer);
@@ -117,6 +121,8 @@ const RantWall = forwardRef<RantWallHandle, { rants: Rant[] }>(function RantWall
       mq.removeEventListener?.("change", applyMode);
       window.removeEventListener("resize", onResize);
       window.clearTimeout(resizeTimer);
+      window.clearTimeout(settle);
+      cancelAnimationFrame(raf);
     };
   }, []);
 
@@ -472,6 +478,14 @@ const RantWall = forwardRef<RantWallHandle, { rants: Rant[] }>(function RantWall
         const rot = b.rot0 + Math.sin(time * b.rotFreq + b.phase) * 1.8 + b.vx * 0.012;
 
         b.el.style.transform = `translate3d(${(b.cx - b.w / 2).toFixed(2)}px, ${(b.cy - b.h / 2).toFixed(2)}px, 0) rotate(${rot.toFixed(2)}deg) scale(${sx.toFixed(3)}, ${sy.toFixed(3)})`;
+
+        // Edge fade: bubbles dissolve into the archive as they drift off the top,
+        // and materialize as they rise into view from the bottom. No hard pops.
+        const fade = H * 0.14;
+        const topFade = Math.min(Math.max((b.cy + b.h / 2) / fade, 0), 1);
+        const bottomFade = Math.min(Math.max((H - (b.cy - b.h / 2)) / fade, 0), 1);
+        const op = b.hover ? 1 : Math.min(topFade, bottomFade);
+        b.el.style.opacity = op.toFixed(3);
       }
     };
 
@@ -524,6 +538,9 @@ const RantWall = forwardRef<RantWallHandle, { rants: Rant[] }>(function RantWall
               return;
             }
             const textEl = el.querySelector<HTMLSpanElement>(".rant-text")!;
+            // Opacity is driven per-frame in physics mode; kill the CSS
+            // transition so the edge-fade isn't smeared.
+            el.style.transition = "none";
             bodiesRef.current[i] = {
               el,
               textEl,
