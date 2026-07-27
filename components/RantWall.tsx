@@ -72,10 +72,15 @@ const clamp = (v: number, lo: number, hi: number) =>
 interface Props {
   rants: Rant[];
   globalView: boolean;
+  /** picking a racer: bubbles crawl so they're easy to hit, and click selects */
+  pickMode?: boolean;
+  /** the racer is up — stop burning frames on the wall behind it */
+  paused?: boolean;
+  onPick?: (rant: Rant) => void;
 }
 
 const RantWall = forwardRef<RantWallHandle, Props>(function RantWall(
-  { rants, globalView },
+  { rants, globalView, pickMode = false, paused = false, onPick },
   ref
 ) {
   const visible = rants.slice(0, MAX_BODIES);
@@ -87,6 +92,10 @@ const RantWall = forwardRef<RantWallHandle, Props>(function RantWall(
   const freshRef = useRef<Set<string>>(new Set());
   const globalViewRef = useRef(globalView);
   globalViewRef.current = globalView;
+  const pickRef = useRef(pickMode);
+  pickRef.current = pickMode;
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
 
   // world + camera live in refs: physics must never trigger React renders
   const worldRef = useRef({ w: 1200, h: 800 });
@@ -347,6 +356,8 @@ const RantWall = forwardRef<RantWallHandle, Props>(function RantWall(
     let time = 0;
 
     const stepCore = (dt: number) => {
+      // the racer owns the screen — don't animate what nobody can see
+      if (pausedRef.current) return;
       time += dt;
       const vw = window.innerWidth;
       const vh = window.innerHeight;
@@ -402,7 +413,7 @@ const RantWall = forwardRef<RantWallHandle, Props>(function RantWall(
         b.vx -= b.vx * 0.5 * dt;
         b.vy -= b.vy * 0.5 * dt;
 
-        if (p.active && !calm && !b.hover) {
+        if (p.active && !calm && !b.hover && !pickRef.current) {
           const dx = b.x - pwx;
           const dy = b.y - pwy;
           const d2 = dx * dx + dy * dy;
@@ -415,7 +426,8 @@ const RantWall = forwardRef<RantWallHandle, Props>(function RantWall(
           }
         }
 
-        const speedScale = b.hover ? 0.12 : 1;
+        // in pick mode the wall nearly stops so a bubble is easy to click
+        const speedScale = pickRef.current ? 0.08 : b.hover ? 0.12 : 1;
         b.x += b.vx * speedScale * dt;
         b.y += b.vy * speedScale * dt;
 
@@ -593,7 +605,12 @@ const RantWall = forwardRef<RantWallHandle, Props>(function RantWall(
   }, [recomputeWorld]);
 
   return (
-    <div className={`wall${globalView ? " global" : ""}`} ref={wallElRef}>
+    <div
+      className={`wall${globalView ? " global" : ""}${pickMode ? " picking" : ""}${
+        paused ? " asleep" : ""
+      }`}
+      ref={wallElRef}
+    >
       <div className="world" ref={worldElRef}>
         {visible.map((r) => (
           <div
@@ -601,6 +618,18 @@ const RantWall = forwardRef<RantWallHandle, Props>(function RantWall(
             className={`bubble ${VARIANTS[hashStr(r.id) % VARIANTS.length]} ${sizeClass(r.text)}`}
             ref={(el) => {
               ensureBody(r.id).el = el;
+            }}
+            role={pickMode ? "button" : undefined}
+            tabIndex={pickMode ? 0 : undefined}
+            onClick={() => {
+              // a drag across the wall isn't a pick
+              if (pickMode && !dragRef.current.moved) onPick?.(r);
+            }}
+            onKeyDown={(e) => {
+              if (pickMode && (e.key === "Enter" || e.key === " ")) {
+                e.preventDefault();
+                onPick?.(r);
+              }
             }}
             onPointerEnter={() => {
               const b = bodiesRef.current.get(r.id);

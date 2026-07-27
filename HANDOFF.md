@@ -12,6 +12,10 @@ the wall, and it becomes a floating physics bubble that drifts and bounces off o
 people's rants. Pure black & white, spray-paint / graffiti / street-art aesthetic.
 No accounts, no names, no logins — rants are never attributed to anyone.
 
+The site now has **two modes**: the wall itself, and **CRASHOUT RUN** — a pseudo-3D
+vertical racer where you pick a rant off the wall and drive it through everyone
+else's rage. Fully documented in **§17**; read that before touching `lib/game/`.
+
 - **Live site:** https://crashout-uk.vercel.app
 - **GitHub repo:** https://github.com/gitnityanth-code/crashout (public, branch `main`)
 - **Local project root:** `C:\Users\gorre\OneDrive\Desktop\Crashout site`
@@ -57,9 +61,10 @@ C:\Users\gorre\OneDrive\Desktop\Crashout site\
 │       └── purge\route.ts           POST — self-healing cleanup (see §7)
 │
 ├── components\
-│   ├── CrashoutApp.tsx              app shell, state, polling, global-view toggle
+│   ├── CrashoutApp.tsx              app shell, state, polling, view + mode switching
 │   ├── RantWall.tsx                 ★ THE PHYSICS ENGINE (~20 KB) — world + camera
 │   ├── RantForm.tsx                 glassy input pill, honeypot, verdict toast
+│   ├── RantRacer.tsx                ★ THE GAME shell — canvas, input, HUD, loop (§17)
 │   ├── Logo.tsx                     wordmark w/ animated gradient (luminance mask)
 │   └── BackgroundFX.tsx             grain, glows, matrix drips, ghost words, splats
 │
@@ -67,7 +72,12 @@ C:\Users\gorre\OneDrive\Desktop\Crashout site\
 │   ├── moderation.ts                ★ MODERATION FRAMEWORK (~16 KB, 9 layers)
 │   ├── store.ts                     Redis/in-memory storage + purge helpers
 │   ├── ratelimit.ts                 per-IP limiting (1 per 15s, 30/hour)
-│   └── seeds.ts                     returns [] — kept only so imports don't break
+│   ├── seeds.ts                     returns [] — kept only so imports don't break
+│   └── game\                        ★ CRASHOUT RUN — the racer (§17)
+│       ├── racer.ts                 the simulation: no DOM, no canvas, no React
+│       ├── render.ts                canvas renderer: road, billboards, debris
+│       ├── sprites.ts               each rant baked once into an offscreen sprite
+│       └── audio.ts                 synthesised SFX, oscillators only, no assets
 │
 ├── scripts\
 │   └── moderation.test.mjs          95-case test suite (npm run test:moderation)
@@ -429,7 +439,11 @@ Nothing is broken. These are opportunities, not debts:
 3. **Mobile touch tuning** — pinch-to-zoom between standard and global view would be
    a natural gesture; currently it's the button.
 4. **Real-device testing** — verified via automation and DOM probes on desktop and a
-   375×812 emulated viewport, but not on a physical phone.
+   375×812 emulated viewport, but not on a physical phone. **This now includes the
+   racer (§17)**, whose steering feel and touch-drag gain are the parts most worth
+   trying with real thumbs.
+4b. **A leaderboard for CRASHOUT RUN** — best score is `localStorage` only today.
+   A shared board would need a new key namespace and its own rate limiting.
 5. **Load testing** — architecture is designed for 500–1k concurrent (CDN-cached
    reads, O(1) Redis writes) but has not been load-tested under real traffic.
 6. **`MAX_BODIES = 300`** — if the archive grows huge, consider DOM virtualization in
@@ -473,5 +487,152 @@ Nothing is broken. These are opportunities, not debts:
 > https://crashout-uk.vercel.app and the code is at
 > `C:\Users\gorre\OneDrive\Desktop\Crashout site`.
 > Read `HANDOFF.md` in that folder first — it's the complete project context
-> (architecture, the physics engine, the moderation framework, deploy process,
-> gotchas, and open items). Then [YOUR REQUEST HERE].
+> (architecture, the physics engine, the racing game mode, the moderation
+> framework, deploy process, gotchas, and open items). Then [YOUR REQUEST HERE].
+
+---
+
+## 17. CRASHOUT RUN — the game mode
+
+Added **27 July 2026**. A pseudo-3D vertical racer built into the site. Press
+**RACE THE WALL** (bottom right) → the wall slows to a crawl and every bubble
+becomes clickable → click one and it becomes your racer.
+
+Everything lives in `lib/game/` + `components/RantRacer.tsx`. **It shares nothing
+with the wall's physics engine** (§4) — different problem, different code. The wall
+was left alone apart from three small additions: a `pickMode` prop, a `paused` prop,
+and an `onPick` callback.
+
+### The loop
+
+Traffic (other people's rants) comes at you down a four-lane road. Steer with
+**A/D** or **←/→**, throttle with **W/S** or **↑/↓**, or drag anywhere on touch.
+**P** pause · **M** mute · **R** restart · **ESC** quit. Three lives.
+
+- Crossing **100 / 300 / 700** unlocks a reward that spawns on the track to collect:
+  **SHIELD** (eats one crash), **SLO-MO** (5s), **SCORE ×2** (14s).
+- **1500 ends the run** — `WALL CLEARED`.
+- Crash → both bubbles burst into their own individual letters, the world freezes,
+  **CRASHOUTT** slams onto the middle of the screen for 1.5s, then you respawn with
+  the road ahead faded clear and 2s of invulnerability.
+- Near misses pay **+8** and flash `NICE`; a clean pass pays +2.
+
+### The world model
+
+A pinhole camera at `(camX, camH, 0)` looks down `+z`. The road is the `y=0` plane,
+`ROAD_W = 240` units wide, 4 lanes. The player is pinned at `z = Z_PLAYER (90)` and
+steers along `x`; traffic spawns at `Z_FAR (940)` and closes on you. Screen size falls
+straight out of the projection, so a bubble genuinely grows as it approaches:
+
+```
+scale     = focal / z
+screenX   = cx + (x - camX) * scale
+groundRow = horizonY + camHF / z
+```
+
+`makeCam()` derives `focal` and `camHF` from the viewport, so the road always fills
+~84% of the screen and the horizon always sits at 33% — desktop or phone.
+
+The "3D" is sold by: camera lateral offset that slides the road as you steer, camera
+roll on hard turns, billboard shear proportional to off-axis distance, light pools
+under floating bubbles, posts and rumble strips flying past, atmospheric fade into the
+horizon, and speed lines from the vanishing point.
+
+### 🔒 The passability invariant (do not break this)
+
+Traffic spawns in **waves** — a set of bubbles sharing one `z` and one velocity, so
+nothing inside a wave can drift into anything else inside it. Four rules together
+guarantee the road is *always* driveable:
+
+1. Every wave leaves **at least one lane free**.
+2. **Drift is clamped inside a bubble's own lane** — a free lane stays fully free.
+3. **Lane switchers** only slide into an *adjacent* lane the wave has already
+   reserved **and left empty**. Adjacent, so the path can't sweep through a free lane
+   sitting between two blocked ones; empty, so it can't land on another bubble.
+   Reserving the spare costs an obstacle, so switching waves are thinner.
+4. **No wave may reach you until `tmin` seconds after the wave ahead does.**
+
+Rule 4 is the important one and it was learned the hard way. Spacing traffic by
+*distance* is not enough: a fast wave behind a slow one arrives sooner than the gap
+suggests, and the game deals you a lane change you physically cannot make. Measured at
+one point: **444 units/s of lateral movement required against a 260 cap.** The rule is
+now stated in arrival *time* (`minZBehind()` in `racer.ts`), which also means flooring
+the throttle raises the stakes without ever making the road unfair.
+
+`tmin` per level is **1.75 / 1.55 / 1.4 / 1.25s**; crossing the entire road flat out
+takes ~0.9s, so there is real margin at every difficulty.
+
+**Verified by simulation** (see below): repeated full runs to 1500 with **zero**
+unpassable moments and ~24 world units of legal road available at every instant.
+
+### Levels
+
+Four bands (`LEVELS` in `racer.ts`), switching at the milestones. Each one raises
+base/max speed, tightens the spawn gap, blocks more lanes, and widens `vary` — how
+far a wave's own velocity strays from yours, which is what makes arrival rates genuinely
+unpredictable rather than merely fast. Lane-switching starts at level 2 and reaches
+45% of waves by level 4.
+
+| Lvl | Score | Speed | Lanes blocked | Switchers | `tmin` |
+|---|---|---|---|---|---|
+| 1 | 0–100 | 175→235 | 1 | — | 1.75s |
+| 2 | 100–300 | 210→285 | 1–2 | 12% | 1.55s |
+| 3 | 300–700 | 255→345 | 2–3 | 30% | 1.4s |
+| 4 | 700–1500 | 300→410 | 2–3 | 45% | 1.25s |
+
+### Why it doesn't stutter
+
+- **Fixed timestep** of `1/144s` with a capped accumulator (max 12 substeps, then the
+  accumulator is dropped) — identical physics on any machine, no death spiral.
+- **Swept interval collision in `z`** — nothing tunnels through you however fast it
+  closes. Not a point-in-box test; don't "simplify" it into one.
+- **Zero React renders while playing.** The HUD is written to DOM nodes via refs;
+  React re-renders only on phase changes. Same rule as the wall: never `setState` at
+  60fps.
+- **Sprites baked once** (`sprites.ts`) — a bubble costs one `drawImage` at any depth.
+- **Road as exact perspective trapezoids** between stripe boundaries, not per-scanline
+  bands: ~36 quads instead of ~270, and stripes shrink continuously into the horizon
+  so nothing ever pops or shimmers.
+- Auto-pauses on blur / tab hide; `dt` is clamped at 0.25s so returning from a hidden
+  tab never teleports the world.
+
+**Measured** (919×868, software-rendered canvas): **0.5 ms/frame** idle at level 4,
+**6.4 ms** on the heaviest crash frame, against a 16.7 ms budget. Mobile geometry
+(375×812 @ dpr 2): **1.5 ms**.
+
+### ⚠️ One trap already hit here
+
+Letter debris is the most expensive thing the renderer draws. Sizes are **integers on
+purpose** and `drawLetters()` **groups glyphs by size** — setting `ctx.font` re-parses
+the whole shorthand including the long `next/font` family list, and doing that per
+glyph cost **~75 ms/frame**. Keep the grouping. Debris is capped at 64 chars per burst,
+240 letters total.
+
+### Testing it headlessly
+
+Same problem as the wall (§9): this machine's browser pane reports reduced-motion and
+`visibility: hidden`, so rAF never fires and screenshots fail. `RantRacer` therefore
+exposes `window.__run` while mounted:
+
+```js
+__run.tick(ms, inputOverride)  // advance deterministically + render + sync HUD
+__run.state()                  // phase, score, level, lives, speed, playerX, …
+__run.waves()                  // live wave list: z, vz, ghost, per-item lane + x
+__run.set(patch)               // Object.assign onto engine state
+__run.input({left,right,up,down,touchX})
+__run.start() / __run.reset() / __run.cam()
+```
+
+It drives the **same** `syncPhase`/`syncHud` path as the real loop, so what you measure
+is what ships. The oracle-bot audit used to verify the invariant is worth re-running
+after any change to spawning: drive toward the nearest wave's free lane with a
+predictive (damped) controller and assert `violations === 0`.
+
+> A bang-bang controller oscillates around the target and crashes — that's the *bot*
+> being bad, not the game. Use `target - (x + vx * 0.16)` as the error term.
+
+### Reduced motion
+
+The wall gentles itself under `prefers-reduced-motion`; **the game ignores it entirely.**
+It is opt-in behind a button, the canvas *is* the content, and a frozen racer just
+reads as broken. Only the CSS entry/slam animations are shortened.
